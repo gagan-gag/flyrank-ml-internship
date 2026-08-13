@@ -1,0 +1,12 @@
+{
+  "n_rows": 30000,
+  "n_clients": 32,
+  "test_base_rate": 0.517,
+  "baseline_staleness_precision_at_50": 0.64,
+  "logistic_regression_precision_at_50": 0.76,
+  "random_forest_precision_at_50": 0.72,
+  "reason_code_mix": {
+    "young_unproven_content": 0.82,
+    "weak_ranking_position": 0.18
+  }
+}

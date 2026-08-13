@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Does a page's own signals predict search decline? | Refresh / Content Opportunity Scoring</title>
+<meta name="description" content="A validated model for prioritizing which pages to review first, built on the FlyRank ML Internship search dataset.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f5f0;
+    --card:#ffffff;
+    --ink:#171a1f;
+    --ink-soft:#565c66;
+    --line:#dcd9cf;
+    --signal:#2c5f8a;
+    --signal-soft:#e7eef3;
+    --decline:#b8622a;
+    --decline-soft:#f7e9dd;
+    --confirm:#3f7d4f;
+    --confirm-soft:#e6f0e8;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); line-height:1.6; font-size:17px;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--signal);}
+  .wrap{max-width:760px; margin:0 auto; padding:0 24px;}
+  .wide{max-width:920px;}
+
+  /* ---------- Hero ---------- */
+  header.hero{
+    background:var(--ink); color:var(--paper);
+    padding:72px 0 56px; border-bottom:6px solid var(--signal);
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:#9aa5b1; margin:0 0 18px;
+  }
+  h1{
+    font-family:var(--mono); font-weight:700; font-size:clamp(28px,4.4vw,42px);
+    line-height:1.18; margin:0 0 22px; letter-spacing:-.01em;
+  }
+  .abstract{
+    font-size:18px; color:#d7dbe0; max-width:66ch; margin:0 0 34px;
+  }
+  .abstract b{color:#fff;}
+  .stat-row{display:flex; flex-wrap:wrap; gap:14px;}
+  .stat{
+    font-family:var(--mono); background:#20242c; border:1px solid #343b46;
+    border-radius:4px; padding:14px 18px; min-width:140px;
+  }
+  .stat .n{font-size:26px; font-weight:700; display:block;}
+  .stat .l{font-size:11.5px; color:#9aa5b1; text-transform:uppercase; letter-spacing:.06em;}
+  .stat.win .n{color:#7fc492;}
+  .stat.base .n{color:#9aa5b1;}
+
+  /* ---------- Section scaffolding ---------- */
+  section{padding:52px 0;}
+  section + section{border-top:1px solid var(--line);}
+  .num{
+    font-family:var(--mono); color:var(--signal); font-size:13px;
+    letter-spacing:.1em; margin:0 0 6px; font-weight:600;
+  }
+  h2{
+    font-family:var(--mono); font-size:26px; margin:0 0 20px; letter-spacing:-.01em;
+  }
+  h3{font-family:var(--sans); font-size:17px; margin:26px 0 10px;}
+  p{margin:0 0 16px; color:var(--ink);}
+  .lede{font-size:18px; color:var(--ink-soft);}
+  ul,ol{padding-left:22px;}
+  li{margin-bottom:8px;}
+  code, .mono{font-family:var(--mono); font-size:.92em;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:6px;
+    padding:20px 22px; margin:18px 0;
+  }
+  .figure{margin:26px 0;}
+  .figure img{width:100%; border:1px solid var(--line); border-radius:4px; display:block;}
+  .caption{
+    font-family:var(--mono); font-size:13px; color:var(--ink-soft);
+    margin-top:10px; padding-left:14px; border-left:3px solid var(--signal);
+  }
+
+  /* ---------- Results table ---------- */
+  table{width:100%; border-collapse:collapse; margin:18px 0; font-family:var(--mono); font-size:14.5px;}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line);}
+  th{font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600;}
+  tr.win td{color:var(--confirm); font-weight:600;}
+  tr.base td{color:var(--ink-soft);}
+
+  /* ---------- Signature: queue card ---------- */
+  .queue{border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:20px 0; background:var(--card);}
+  .queue-row{
+    display:flex; flex-wrap:nowrap; align-items:center; padding:12px 16px;
+    border-bottom:1px solid var(--line); font-family:var(--mono); font-size:13.5px;
+  }
+  .queue-row:last-child{border-bottom:none;}
+  .queue-row.head{background:#f0efe9; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft);}
+  .rank{color:var(--ink-soft); width:24px; flex:0 0 24px; margin-right:14px;}
+  .cid{color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; min-width:0; margin-right:14px;}
+  .score-wrap{flex:0 0 92px; width:92px; margin-right:14px;}
+  .score-bar{display:block; background:var(--line); border-radius:3px; height:8px; position:relative; overflow:hidden;}
+  .score-bar span{display:block; height:100%; background:var(--signal); border-radius:3px;}
+  .score-val{display:block; font-size:12px; color:var(--ink-soft); margin-top:3px;}
+  .chip{
+    display:inline-block; padding:3px 8px; border-radius:3px; font-size:11.5px;
+    text-transform:none; white-space:nowrap; flex:0 0 auto; margin-right:14px;
+  }
+  .chip.young{background:var(--signal-soft); color:var(--signal);}
+  .chip.weak{background:var(--decline-soft); color:var(--decline);}
+  .action{font-size:11.5px; color:var(--ink-soft); flex:0 0 130px; width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+  /* ---------- Limitations box ---------- */
+  .flagged{
+    background:var(--decline-soft); border:1px solid #e0b592; border-radius:6px;
+    padding:20px 22px; margin:18px 0;
+  }
+  .flagged h3{margin-top:0; color:var(--decline);}
+
+  /* ---------- No-go / methodology chips ---------- */
+  .pass{color:var(--confirm); font-family:var(--mono); font-size:13px;}
+  .pass::before{content:"✓ "; font-weight:700;}
+
+  /* ---------- Footer ---------- */
+  footer{padding:44px 0 70px; text-align:center;}
+  footer .credit{
+    font-family:var(--mono); font-size:14px; color:var(--ink-soft);
+  }
+  footer .credit a{color:var(--signal); font-weight:600;}
+  .repro a{display:inline-block; margin:4px 12px 4px 0;}
+
+  @media (max-width:640px){
+    .queue-row{flex-wrap:wrap;}
+    .queue-row .action{display:none;}
+    header.hero{padding:52px 0 40px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Search Intelligence Research &middot; Refresh / Content Opportunity Scoring</p>
+    <h1>Does a page's own signals predict search decline — well enough to beat a simple staleness rule?</h1>
+    <p class="abstract">
+      This work asks whether page-level search signals — visibility, ranking position, age,
+      and traffic pattern — can predict which pages are declining well enough to prioritize a
+      fixed-capacity weekly review queue. Using 30,000 pseudonymized content items from the
+      FlyRank ML Internship dataset, I trained a client-grouped, leakage-checked Logistic
+      Regression and Random Forest against an observed 30-day decline label. <b>Logistic
+      Regression reached 0.76 precision@50 and Random Forest 0.72 — both clear the 0.64
+      staleness-rule baseline and the 0.517 base rate</b>, with a counter-intuitive finding that
+      most flagged pages are younger than typical, not staler. The output is a ranked,
+      reason-coded review queue for human editors — a decision-support tool, not an automated
+      content system.
+    </p>
+    <div class="stat-row">
+      <div class="stat base"><span class="n">0.517</span><span class="l">base rate</span></div>
+      <div class="stat"><span class="n">0.640</span><span class="l">staleness rule</span></div>
+      <div class="stat win"><span class="n">0.760</span><span class="l">logistic regression</span></div>
+      <div class="stat win"><span class="n">0.720</span><span class="l">random forest</span></div>
+    </div>
+  </div>
+</header>
+
+<section id="intro">
+  <div class="wrap">
+    <p class="num">01 — INTRODUCTION</p>
+    <h2>The problem: a fixed queue, a much bigger portfolio</h2>
+    <p class="lede">
+      A content team can realistically hand-review roughly 50 pages a week. Across a portfolio
+      of thousands, the real decision isn't "is this page declining" in isolation — it's
+      <em>which ~50 pages does a reviewer open first</em>. That's a ranking problem, not a
+      classification problem, and it needs a ranking-appropriate metric.
+    </p>
+    <p>
+      The obvious first instinct — sort by staleness, oldest-updated first — is a real rule, not
+      a strawman. This paper tests whether a model that combines many signals can beat that rule
+      on the same, honestly-split data, and reports the result whichever way it lands.
+    </p>
+  </div>
+</section>
+
+<section id="data">
+  <div class="wrap">
+    <p class="num">02 — DATA</p>
+    <h2>Data</h2>
+    <p>
+      <b>Release:</b> the FlyRank ML Internship starter slice
+      (<code>content_refresh_anonymized.csv</code>) — 30,000 content items across 32
+      pseudonymized clients. Every metric is a trailing-90-day aggregate as of one export
+      snapshot; there is no per-row date, so this is a single snapshot, not a daily panel.
+    </p>
+    <h3>Excluded, and why</h3>
+    <ul>
+      <li><code>trend_direction</code>, <code>trend_pct</code>, and the raw 30-day comparison
+        columns that build the label — including them as features would leak the answer back
+        into the model.</li>
+      <li><code>provider_used</code>, <code>model_used</code> — production details about how a
+        page was written, not signals about how it performs in search.</li>
+      <li>All identifiers are pseudonyms. No client names, brand names, URLs, or raw search
+        queries appear anywhere in this analysis or on this page.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap">
+    <p class="num">03 — METHODOLOGY</p>
+    <h2>Methodology</h2>
+    <p>
+      <b>Label:</b> <code>is_declining_label</code> = 1 if a page's impressions fell from the
+      prior 30-day window to the most recent 30-day window inside the snapshot — an observed
+      comparison, not an invented threshold.
+    </p>
+    <p>
+      <b>Features:</b> log-transformed traffic counts, position/CTR/engagement rates, content
+      age and staleness, and explicit <code>has_*</code> missingness flags rather than blind
+      zero-fills, since missingness is patterned by content type, not random.
+    </p>
+    <p>
+      <b>Baseline:</b> rank purely by days since last update — a real, legitimate single-signal
+      rule.
+    </p>
+    <p>
+      <b>Validation design:</b> a client-grouped split (no client's pages appear in both train
+      and test), not a random row split — because this is a single snapshot with no time
+      dimension, and a random split lets same-client patterns leak across the split. This
+      mattered in practice: the identical model scored 0.900 precision@50 under a random split
+      and 0.720 under the honest grouped split — an 18-point inflation from the leak.
+    </p>
+    <div class="card">
+      <h3 style="margin-top:0;">Leakage checks run</h3>
+      <p class="pass">No label-derived columns in the final feature set</p>
+      <p class="pass">No production-detail flags (<code>provider_used</code>, <code>model_used</code>) used</p>
+      <p class="pass">Confession test: deliberately adding the label-source column back in pushed precision@50 to 1.000 — confirming the exclusion logic actually works</p>
+      <p class="pass">Zero client overlap between train and test, verified directly</p>
+    </div>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap wide">
+    <p class="num">04 — RESULTS</p>
+    <h2>Results</h2>
+    <p>
+      Base rate on the held-out test split: <b>0.517</b> — every number below has to clear that
+      to mean anything at all.
+    </p>
+    <table>
+      <tr><th>Model</th><th>Precision@50</th><th>Lift over base rate</th></tr>
+      <tr class="base"><td>Random (base rate)</td><td>0.517</td><td>1.00×</td></tr>
+      <tr><td>Staleness rule (baseline)</td><td>0.640</td><td>1.24×</td></tr>
+      <tr class="win"><td>Logistic Regression</td><td>0.760</td><td>1.47×</td></tr>
+      <tr class="win"><td>Random Forest</td><td>0.720</td><td>1.39×</td></tr>
+    </table>
+    <div class="figure">
+      <img src="figures/capstone_precision_comparison.png" alt="Bar chart comparing precision at 50 for the random baseline, staleness rule, logistic regression, and random forest">
+      <p class="caption">Both models clear the staleness-rule baseline. Logistic Regression — the simpler,
+        more readable model — edges out Random Forest, reported here as the finding rather than
+        smoothed over in favor of the more complex model.</p>
+    </div>
+    <p>
+      Feature importance in the Random Forest points to consistency of visibility, overall
+      traffic scale, ranking position, and content age as the strongest signals — plausible
+      drivers of decline, and none suspiciously dominant enough to suggest a hidden leak.
+    </p>
+  </div>
+</section>
+
+<section id="limits">
+  <div class="wrap">
+    <p class="num">05 — LIMITATIONS</p>
+    <h2>Limitations &amp; honest framing</h2>
+    <div class="flagged">
+      <h3>What this work cannot claim</h3>
+      <ul>
+        <li><b>Not causal.</b> Nothing here tests <em>why</em> a page is declining or whether any
+          recommended action would fix it — every claim below is observational and
+          decision-support only.</li>
+        <li><b>Single snapshot.</b> With no per-row date, this cannot confirm whether today's
+          flagged pages are still declining next month.</li>
+        <li><b>A rate, not a guarantee.</b> Precision@50 of 0.72–0.76 means roughly one in four
+          of even the best-ranked picks is a false positive on an unseen client.</li>
+        <li><b>Counter-intuitive, reported honestly:</b> staleness turned out to be a mixed
+          signal for decline, not a clean driver. Most flagged pages in the recommendation queue
+          are <em>younger</em> than typical, not older — this paper reports that finding rather
+          than forcing the more intuitive "old content decays" story.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="recs">
+  <div class="wrap wide">
+    <p class="num">06 — RANKED RECOMMENDATIONS</p>
+    <h2>Ranked recommendations</h2>
+    <p>
+      The validated model, refit on the full dataset, scores every eligible page. Each flagged
+      page gets exactly one reason code and one recommended action — never a raw probability a
+      reviewer has to interpret themselves.
+    </p>
+    <div class="figure">
+      <img src="figures/capstone_reason_code_mix.png" alt="Bar chart showing 82 pages flagged as young unproven content and 18 flagged as weak ranking position">
+      <p class="caption">Reason-code mix across the top 100 flagged pages: 82% young/unproven content
+        (lower-confidence, monitor only), 18% weak ranking position (a real editorial target).</p>
+    </div>
+    <div class="queue">
+      <div class="queue-row head"><span class="rank">#</span><span class="cid">Content ID</span><span class="score-wrap">Score</span><span class="chip" style="background:transparent;padding:0;">Reason</span><span class="action">Action</span></div>
+      <div class="queue-row"><span class="rank">1</span><span class="cid">content_20c5d6a1c7b1</span><span class="score-wrap"><span class="score-bar"><span style="width:82%"></span></span><span class="score-val">0.820</span></span><span class="chip young">young_unproven</span><span class="action">monitor_30_days</span></div>
+      <div class="queue-row"><span class="rank">2</span><span class="cid">content_ae56011a24de</span><span class="score-wrap"><span class="score-bar"><span style="width:81%"></span></span><span class="score-val">0.809</span></span><span class="chip young">young_unproven</span><span class="action">monitor_30_days</span></div>
+      <div class="queue-row"><span class="rank">3</span><span class="cid">content_384d9f9e00c9</span><span class="score-wrap"><span class="score-bar"><span style="width:80%"></span></span><span class="score-val">0.802</span></span><span class="chip young">young_unproven</span><span class="action">monitor_30_days</span></div>
+      <div class="queue-row"><span class="rank">9</span><span class="cid">content_2333ccd359f7</span><span class="score-wrap"><span class="score-bar"><span style="width:80%"></span></span><span class="score-val">0.798</span></span><span class="chip weak">weak_position</span><span class="action">priority_refresh_review</span></div>
+    </div>
+    <h3>What must never be automated</h3>
+    <ul>
+      <li>No auto-publishing or auto-editing — this queue produces a list to review, never text to ship.</li>
+      <li>No action on pages outside the model's training scope (established, low-traffic pages were never seen in training).</li>
+      <li>No decisions based on production-detail columns (which system generated the content).</li>
+      <li><code>decline_score</code> is a ranking signal, never a public claim or a certainty about any single page.</li>
+    </ul>
+    <h3>Monitoring / retrain triggers</h3>
+    <p>
+      Watch for: precision@50 on a rolling holdout falling toward the 0.640 baseline (model has
+      stopped adding value); the label's base rate drifting far from ~0.52 (a portfolio-wide
+      shock, e.g. an algorithm update); the reason-code mix shifting sharply from ~82/18; or a
+      fixed monthly re-score cadence regardless of any signal above.
+    </p>
+  </div>
+</section>
+
+<section id="repro">
+  <div class="wrap">
+    <p class="num">07 — REPRODUCIBILITY</p>
+    <h2>Reproducibility</h2>
+    <p>
+      Every number on this page traces back to a committed, executed notebook. Random seed fixed
+      at 42 throughout. The full 10-notebook progression — from research question to this
+      capstone — is public in the repository below.
+    </p>
+    <p class="repro">
+      <a href="https://github.com/gagan-gag/flyrank-ml-internship" target="_blank" rel="noopener">→ Full repository</a>
+      <a href="https://github.com/gagan-gag/flyrank-ml-internship/blob/main/work/notebooks/capstone.ipynb" target="_blank" rel="noopener">→ Capstone notebook</a>
+      <a href="https://github.com/gagan-gag/flyrank-ml-internship/tree/main/work/notebooks" target="_blank" rel="noopener">→ All weekly notebooks</a>
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p class="credit">Built on the FlyRank ML Internship dataset —
+      <a href="https://flyrank.ai" target="_blank" rel="noopener">flyrank.ai</a>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
