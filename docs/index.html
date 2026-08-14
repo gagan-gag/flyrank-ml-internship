@@ -151,9 +151,11 @@
     <p class="eyebrow">Search Intelligence Research &middot; Refresh / Content Opportunity Scoring</p>
     <h1>Does a page's own signals predict search decline — well enough to beat a simple staleness rule?</h1>
     <p class="abstract">
-      This work asks whether page-level search signals — visibility, ranking position, age,
-      and traffic pattern — can predict which pages are declining well enough to prioritize a
-      fixed-capacity weekly review queue. Using 30,000 pseudonymized content items from the
+      A content team can hand-review only a fraction of a large portfolio each week, so the real
+      question isn't "is this page declining" — it's which ~50 pages to open first. This work
+      asks whether page-level search signals — visibility, ranking position, age, and traffic
+      pattern — can answer that well enough to beat a simple staleness rule. Using 30,000
+      pseudonymized content items from the
       FlyRank ML Internship dataset, I trained a client-grouped, leakage-checked Logistic
       Regression and Random Forest against an observed 30-day decline label. <b>Logistic
       Regression reached 0.76 precision@50 and Random Forest 0.72 — both clear the 0.64
@@ -185,6 +187,16 @@
       The obvious first instinct — sort by staleness, oldest-updated first — is a real rule, not
       a strawman. This paper tests whether a model that combines many signals can beat that rule
       on the same, honestly-split data, and reports the result whichever way it lands.
+    </p>
+    <p>
+      This isn't a hypothetical. FlyRank's own portfolio-wide research (built on 79 million rows
+      of production search data, see Acknowledgments) reports a growing/declining split of
+      roughly 62%/38% across its content — meaning a majority-vote guess already clears 62%
+      before any model does anything. That's the actual bar a "smarter" prioritization tool has
+      to clear to be worth building, not a round number picked for convenience. The lane this
+      paper works in — Refresh / Content Opportunity Scoring — exists because that gap between
+      "flag everything" and "flag the right 50" is where a content team's real weekly time gets
+      spent or wasted.
     </p>
   </div>
 </section>
